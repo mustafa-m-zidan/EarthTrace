@@ -472,3 +472,32 @@ body::before{animation:starfieldDrift 85s linear infinite}
   .cosmic-particle,.celestial-body,.cosmic-asteroid,.cosmic-rocket,.cosmic-satellite,.cosmic-drifter,.orbit-node i::after{animation:none!important}
   .hero-celestial-field{transform:none!important;transition:none!important}
 }
+
+/* Team grid fix: keep all four profiles visible and responsive. */
+.team-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  align-items:stretch;
+}
+.team-grid > .team-card{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  width:100%;
+  grid-column:auto;
+}
+.team-grid > .team-card h3{
+  overflow-wrap:anywhere;
+}
+.team-grid > .team-card > a{
+  display:inline-block;
+  max-width:100%;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  line-height:1.6;
+}
+@media(max-width:1120px){
+  .team-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:600px){
+  .team-grid{grid-template-columns:minmax(0,1fr);}
+}
