@@ -32,7 +32,9 @@ from pydantic import BaseModel, Field, field_validator
 from scipy.stats import norm, t as student_t, theilslopes
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+IS_SERVERLESS = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+# On Vercel/serverless the project folder is read-only; only /tmp is writable.
+DATA_DIR = Path("/tmp/earthtrace") if IS_SERVERLESS else BASE_DIR / "data"
 DB_PATH = DATA_DIR / "earthtrace.sqlite3"
 NASA_POWER_BASE = "https://power.larc.nasa.gov/api/temporal/monthly/point"
 NASA_POWER_DOCS = "https://power.larc.nasa.gov/docs/services/api/temporal/monthly/"
@@ -965,6 +967,13 @@ async def create_analysis_job(request: AnalysisRequest, background_tasks: Backgr
             "INSERT INTO jobs (job_id,status,stage,progress,message,request_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
             (job_id, "queued", "queued", None, "Request queued for NASA retrieval.", request.model_dump_json(), timestamp, timestamp),
         )
+    if IS_SERVERLESS:
+        # Serverless: finish the work before responding, and return the result inline
+        # (later requests may land on a different instance that has no /tmp database).
+        await run_analysis_job(job_id, request.model_dump(mode="json"))
+        job = get_job(job_id) or {}
+        return {"job_id": job_id, "status": job.get("status"), "message": job.get("message"),
+                "error": job.get("error"), "result_id": job.get("result_id"), "result": job.get("result")}
     background_tasks.add_task(run_analysis_job, job_id, request.model_dump(mode="json"))
     return {"job_id": job_id, "status": "queued", "message": "The request was queued; the result will appear when NASA retrieval and analysis finish."}
 

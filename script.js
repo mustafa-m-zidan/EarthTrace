@@ -583,7 +583,9 @@ async function runAnalysis(regionOverride = null, requestOverride = null) {
     const created = await apiRequest("/api/analysis/jobs", { method: "POST", body: JSON.stringify(request) });
     state.activeJob = created.job_id;
     let job = null;
-    for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (created.status === "failed") throw new Error(created.error || "The analysis failed.");
+    if (created.status === "completed" && created.result) job = { status: "completed", result_id: created.result_id, result: created.result };
+    for (let attempt = 0; !job && attempt < 100; attempt += 1) {
       await sleep(1150);
       job = await apiRequest(`/api/analysis/jobs/${created.job_id}`);
       setProgress(job.status, job.message || "");
@@ -592,7 +594,7 @@ async function runAnalysis(regionOverride = null, requestOverride = null) {
     if (!job || job.status !== "completed") {
       throw new Error(job?.error || "The analysis did not finish. The result was not fabricated.");
     }
-    const result = await apiRequest(`/api/analysis/results/${job.result_id}`);
+    const result = job.result || await apiRequest(`/api/analysis/results/${job.result_id}`);
     state.activeResult = result;
     state.lastAnalysisRequest = request;
     state.isSavedResult = false;
