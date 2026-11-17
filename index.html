@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#050811" />
-  <meta name="description" content="EarthTrace — investigate Earth-system signals with NASA data, regional time series, and transparent trend analysis." />
+  <meta name="theme-color" content="#141b23" />
+  <meta name="description" content="EarthTrace — find what is changing on Earth, where, how much, and whether it is significant, using NASA data." />
   <title>EarthTrace — The Earth-System Signal Observatory</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/style.css?v=6" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
   <script type="importmap">
     {
@@ -21,42 +21,63 @@
   </script>
 </head>
 <body>
-  <div class="ambient ambient-a"></div>
-  <div class="ambient ambient-b"></div>
+  <!-- Sky: one tall gradient that slides up as you change tab, so every tab feels one step lower (space -> Earth). -->
+  <div class="sky" id="sky" aria-hidden="true">
+    <div class="sky-track"></div>
+    <div class="sky-limb"></div>
+    <div class="sky-aurora"></div>
+    <div class="sky-ground"></div>
+    <div class="sky-clouds"><i class="cloud-layer c2"></i><i class="cloud-layer c3"></i></div>
+    <canvas class="sky-fx" id="skyFx"></canvas>
+    <div class="sky-haze"></div>
+    <div class="sky-sweep"></div>
+    <div class="sky-glow"></div>
+  </div>
 
   <header class="topbar">
     <a class="brand" href="#observatory" aria-label="EarthTrace home">
       <span class="brand-mark"><span></span><span></span><span></span></span>
       <span class="brand-name">EARTH<span>TRACE</span><small>THE EARTH-SYSTEM SIGNAL OBSERVATORY</small></span>
     </a>
-    <nav class="topnav" aria-label="Main navigation">
+    <nav class="topnav" id="mainNav" aria-label="Main navigation">
+      <span class="nav-indicator" aria-hidden="true"></span>
       <a class="nav-link active" href="#observatory">Observatory</a>
       <a class="nav-link" href="#introduction">How it works</a>
       <a class="nav-link" href="#discover">Data detective</a>
       <a class="nav-link" href="#explorer">Earth Explorer</a>
-      <a class="nav-link" href="#theatre">Guided studies</a>
       <a class="nav-link" href="#hydrology">Hydrology</a>
       <a class="nav-link" href="#team">Team</a>
     </nav>
     <div class="top-actions">
       <span class="system-status"><i></i><span id="apiStatusText">CHECKING SYSTEM</span></span>
       <button class="icon-button" id="aboutButton" aria-label="About EarthTrace" title="About EarthTrace">?</button>
+      <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mainNav">☰</button>
     </div>
+    <span class="scroll-progress" id="scrollProgress" aria-hidden="true"></span>
   </header>
 
+  <!-- Altimeter: each tab is one step of the descent from low Earth orbit to the ground. -->
+  <aside class="alt-hud" id="altimeter" aria-hidden="true">
+    <span class="alt-arrow">↓</span>
+    <div class="alt-text"><small>ALTITUDE</small><b id="altValue">408 km</b></div>
+    <span class="alt-layer" id="altLayer">LOW EARTH ORBIT</span>
+    <span class="alt-dots" id="altDots"></span>
+  </aside>
+  <button class="edge-nav edge-prev" id="viewPrev" type="button" aria-label="Previous tab" hidden>‹</button>
+  <button class="edge-nav edge-next" id="viewNext" type="button" aria-label="Next tab">›</button>
+
   <main>
-    <section class="observatory-section" id="observatory">
+    <section class="observatory-section view" id="observatory" data-view="observatory" tabindex="-1">
       <div class="hero-grid" id="heroGrid">
         <div class="hero-copy">
           <div class="eyebrow"><span class="eyebrow-line"></span> A NEW WAY TO READ OUR PLANET</div>
           <h1>One signal.<br /><em>Different directions.</em><br />Follow the evidence.</h1>
           <p class="hero-lede">Explore NASA Earth data. Detect regional trends. Test the evidence.</p>
           <div class="hero-buttons">
-            <button class="button button-primary" id="startExploring"><span>Start exploring</span><b>↗</b></button>
-            <button class="button button-quiet" id="openGuideFromHero">View a guided investigation <span>→</span></button>
+            <button class="button button-primary" id="startExploring"><span>Start exploring</span><b>→</b></button>
           </div>
           <div class="hero-proof">
-            <div class="proof-item"><strong id="heroVariableCount">04</strong><span>verified variables</span></div>
+            <div class="proof-item"><strong id="heroVariableCount">04</strong><span>NASA variables</span></div>
             <div class="proof-divider"></div>
             <div class="proof-item"><strong>MONTHLY</strong><span>analysis cadence</span></div>
             <div class="proof-divider"></div>
@@ -65,36 +86,10 @@
           <div class="hero-note"><span class="note-icon">✳</span> A trend is evidence of change — not proof of its cause.</div>
         </div>
         <div class="hero-visual">
-          <div class="hero-celestial-field" id="heroCelestialField" aria-hidden="true">
-            <div class="celestial-particles" id="heroCelestialParticles"></div>
-            <span class="celestial-body celestial-body-a"></span>
-            <span class="celestial-body celestial-body-b"></span>
-            <span class="celestial-body celestial-ringed"></span>
-            <span class="cosmic-asteroid asteroid-a"></span>
-            <span class="cosmic-asteroid asteroid-b"></span>
-            <span class="cosmic-drifter drifter-a"></span>
-            <span class="cosmic-drifter drifter-b"></span>
-            <span class="cosmic-rocket">
-              <svg viewBox="0 0 64 76" role="presentation" focusable="false">
-                <path d="M32 7C21 17 17 31 19 47l13 10 13-10C47 31 43 17 32 7Z" fill="rgba(105,201,208,.10)" stroke="#83d5d7" stroke-width="1.5"/>
-                <path d="M19 39 9 50l2 12 11-8M45 39l10 11-2 12-11-8" fill="rgba(242,164,91,.08)" stroke="#dba36f" stroke-width="1.4"/>
-                <circle cx="32" cy="31" r="5.5" fill="rgba(105,201,208,.14)" stroke="#9be2e2" stroke-width="1.3"/>
-                <path d="M27 55 29 64 32 69 35 64 37 55" fill="none" stroke="#f2a45b" stroke-width="1.7" stroke-linecap="round"/>
-                <path d="M32 13v9" stroke="#e8c27a" stroke-width="1" opacity=".8"/>
-              </svg>
-              <i></i>
-            </span>
-            <span class="cosmic-satellite">
-              <i class="satellite-panel satellite-panel-left"></i>
-              <i class="satellite-core"></i>
-              <i class="satellite-panel satellite-panel-right"></i>
-              <i class="satellite-antenna"></i>
-            </span>
-          </div>
           <div class="orbit-label orbit-label-top"><span class="live-dot"></span> PLANETARY SYSTEM / 01</div>
-          <div class="globe-wrap" id="heroGlobeWrap">
+          <div class="globe-wrap">
             <div class="globe-halo"></div>
-            <div class="globe-fallback" id="globeFallback"><div class="fallback-grid"></div><div class="fallback-land"></div></div>
+            <div class="globe-fallback"><div class="fallback-grid"></div><div class="fallback-land"></div></div>
             <div class="globe-crosshair"></div>
           </div>
           <div class="planetary-system" aria-label="Interactive Earth-system signals">
@@ -112,11 +107,11 @@
       </div>
       <div class="hero-bottomline">
         <span>BUILT FOR THE CURIOUS. GROUNDED IN MEASUREMENTS.</span>
-        <span class="scroll-cue">SCROLL TO INVESTIGATE <b>↓</b></span>
+        <button class="scroll-cue" type="button" data-goto="introduction">NEXT · HOW IT WORKS <b>→</b></button>
       </div>
     </section>
 
-    <section class="introduction-section section-wrap" id="introduction">
+    <section class="introduction-section section-wrap view" id="introduction" data-view="introduction" tabindex="-1" hidden>
       <div class="section-heading intro-heading">
         <div><div class="eyebrow"><span class="eyebrow-line"></span> WHAT EARTH TRACE DOES</div><h2>From a question<br />to <em>credible evidence.</em></h2></div>
         <p class="section-intro">EarthTrace is an Earth-system signal observatory. It helps you investigate how a measured variable changes over time, where its direction differs, and how strong the evidence is — using traceable NASA data.</p>
@@ -134,20 +129,38 @@
           </div>
         </div>
       </div>
-      <div class="intro-continue-row"><p>Ready to investigate? Start by choosing what you want to understand.</p><button class="button button-primary" id="openDiscoverFromIntro" type="button">Choose a research question <b>↗</b></button></div>
+      <div class="intro-continue-row"><p>Ready to investigate? Start by choosing what you want to understand.</p><button class="button button-primary" id="openDiscoverFromIntro" type="button">Choose a research question <b>→</b></button></div>
     </section>
 
-    <section class="discover-section section-wrap" id="discover">
-      <div class="section-heading discover-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> START WITH A QUESTION</div><h2>Become a <em>data detective.</em></h2></div><div class="discover-heading-side"><p class="section-intro">Good investigations begin with curiosity. Find a signal worth following, understand what is measured, and let the evidence guide the next question.</p><button class="button button-primary" id="openExplorerFromDiscover" type="button">Continue to Earth Explorer <b>↗</b></button></div></div>
-      <div class="feature-grid">
+    <section class="discover-section section-wrap view" id="discover" data-view="discover" tabindex="-1" hidden>
+      <div class="section-heading discover-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> START WITH A QUESTION</div><h2>Become a <em>data detective.</em></h2></div><div class="discover-heading-side"><p class="section-intro">Good investigations begin with curiosity. Find a signal worth following, understand what is measured, and let the evidence guide the next question.</p><button class="button button-primary" id="openExplorerFromDiscover" type="button">Continue to Earth Explorer <b>→</b></button></div></div>
+      <nav class="section-jump" aria-label="On this tab">
+        <button type="button" class="is-active" data-jump="discoverStart">Ways to start</button>
+        <button type="button" data-jump="signalCatalogue">Signal catalogue</button>
+        <button type="button" data-jump="guidedStudies">Guided studies</button>
+      </nav>
+      <div class="feature-grid" id="discoverStart">
         <article class="feature-card guide-card"><div class="feature-index">01 / GUIDED DISCOVERY</div><div class="feature-icon">⌘</div><h3>Find your<br /><em>next question.</em></h3><p>Answer three short prompts and get recommendations matched to the variables EarthTrace can actually analyze.</p><button class="text-link" id="openGuideCard">Open investigation guide ↗</button><div class="card-orbit card-orbit-a"></div></article>
         <article class="feature-card learning-card"><div class="feature-index">02 / SCIENCE, MADE CLEAR</div><div class="feature-icon">◉</div><h3>Understand the<br /><em>signal.</em></h3><p>Explore what each variable measures, how it is produced, what an increase may indicate, and where its limits are.</p><button class="text-link" id="openLearningLibrary">Explore variable library ↗</button><div class="card-contour"></div></article>
         <article class="feature-card ai-card"><div class="feature-index">03 / RESEARCH DISCOVERY</div><div class="feature-icon">✳</div><h3>Discover with<br /><em>context.</em></h3><p>Connect a region and an Earth-system theme to current research records and source-backed investigation ideas.</p><button class="text-link" id="openDiscoveryLab">Enter discovery lab ↗</button><div class="card-star">✧</div></article>
       </div>
-      <div class="library-strip" id="variableLibrary"><div class="library-strip-header"><div><span class="panel-kicker">THE SUPPORTED CATALOGUE</span><h3>Choose a signal.</h3></div><span class="library-count" id="catalogCount">04 VARIABLES / 01 DATA PATH</span></div><div class="variable-cards" id="variableCards"></div></div>
+      <div class="library-strip" id="signalCatalogue"><div class="library-strip-header"><div><span class="panel-kicker">THE SUPPORTED CATALOGUE</span><h3>Choose a signal.</h3></div><span class="library-count" id="catalogCount">04 VARIABLES / 01 DATA PATH</span></div><div class="variable-cards" id="variableCards"></div></div>
+      <div class="studies-block" id="guidedStudies">
+        <div class="section-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> WATCH THE METHOD</div><h2>Guided studies, <em>step by step.</em></h2></div><p class="section-intro">Two live investigation recipes, not precomputed findings. Run each one against NASA's current published data and inspect the evidence yourself.</p></div>
+        <div class="purpose-strip" aria-label="About guided studies">
+          <div class="purpose-item"><span class="purpose-k">WHAT THIS SECTION IS</span><p>Two ready-made investigations that walk you through the whole method on real NASA data: choose a place and a variable, run the analysis, then read the trend together with how sure we are about it. It is the quickest way to learn how EarthTrace works before you run your own.</p></div>
+          <div class="purpose-item"><span class="purpose-k">HOW TO USE IT</span><ol><li>Pick a study below.</li><li>Press <b>Start live walkthrough</b> and step through the narration.</li><li>Choose <b>Skip to Explorer</b> to run it, then change the place or dates yourself.</li></ol></div>
+          <div class="purpose-item purpose-challenge"><span class="purpose-k">WHY IT'S HERE · THE CHALLENGE</span><p>Open NASA data only helps people who know how to read it. Guided studies are the on-ramp: they turn the data into a question, a method and an honest answer, with nothing pre-computed or simulated, so newcomers can learn to judge evidence for themselves.</p></div>
+        </div>
+      <div class="study-grid">
+        <article class="study-card"><div class="study-map map-dryland"><span class="map-cross">+</span><span class="map-coord">24.1° N / 32.9° E</span></div><div class="study-info"><div class="study-meta"><span>LAND & ATMOSPHERE</span><span>STUDY 01</span></div><h3>Heat over the drylands</h3><p>Investigate monthly near-surface air temperature around Aswan and inspect its long-term trend.</p><div class="study-tags"><span>NASA POWER</span><span>T2M · °C</span><span>MONTHLY</span></div><button class="button button-outline study-launch" data-study="aswan-temp">Start live walkthrough <b>↗</b></button></div></article>
+        <article class="study-card"><div class="study-map map-tropics"><span class="map-cross">+</span><span class="map-coord">3.1° S / 60.0° W</span></div><div class="study-info"><div class="study-meta"><span>WATER & RAINFALL</span><span>STUDY 02</span></div><h3>Following the rainfall signal</h3><p>Explore monthly corrected precipitation near Manaus, then test its direction and uncertainty.</p><div class="study-tags"><span>NASA POWER</span><span>PRECTOTCORR</span><span>MONTHLY</span></div><button class="button button-outline study-launch" data-study="manaus-rain">Start live walkthrough <b>↗</b></button></div></article>
+      </div>
+      <div class="theatre-note"><span>i</span> A guided study sets up the question and settings; the numerical result is retrieved live and may differ as the source product is updated.</div>
+      </div>
     </section>
 
-    <section class="explorer-section section-wrap" id="explorer" hidden>
+    <section class="explorer-section section-wrap view" id="explorer" data-view="explorer" tabindex="-1" hidden>
       <div class="section-heading explorer-heading">
         <div><div class="eyebrow"><span class="eyebrow-line"></span> THE INVESTIGATION WORKSPACE</div><h2>Earth <em>Explorer</em></h2></div>
         <div class="explorer-heading-actions">
@@ -156,12 +169,12 @@
           <button class="button button-outline button-small" id="saveInvestigation">Save investigation <span>＋</span></button>
         </div>
       </div>
-      <div class="workspace-layout" id="workspaceLayout">
+      <div class="workspace-layout">
         <aside class="control-rail panel-surface">
           <div class="rail-title"><span>01 / SIGNAL</span><span class="tiny-orbit">◎</span></div>
           <label class="field-label" for="variableSelect">Earth-system variable</label>
           <select id="variableSelect" class="select-control"></select>
-          <div class="variable-context" id="variableContext">
+          <div class="variable-context">
             <div class="context-kicker">WHAT IT MEASURES</div>
             <p id="variableDescription">Select a variable to understand the signal.</p>
             <button class="text-link" id="learnVariable">Explore variable details ↗</button>
@@ -178,26 +191,37 @@
           <div class="rail-title"><span>03 / LOCATION</span><span class="tiny-orbit">⌖</span></div>
           <label class="field-label" for="placeSearch">Search a place</label>
           <div class="search-field"><span>⌕</span><input type="search" id="placeSearch" placeholder="Listed city or coordinates (lat, lon)" autocomplete="off" /><button id="placeSearchButton" aria-label="Search place">↵</button></div>
-          <div class="preset-list" id="placeSuggestions">
+          <div class="preset-list">
             <button class="preset-chip" data-place="Cairo">Cairo</button><button class="preset-chip" data-place="Alexandria">Alexandria</button><button class="preset-chip" data-place="Aswan">Aswan</button><button class="preset-chip" data-place="Manaus">Manaus</button>
           </div>
-          <div class="selected-location" id="selectedLocationCard"><span class="location-pin">⌖</span><div><small>SELECTED POINT</small><strong id="selectedLocationName">No location selected</strong><span id="selectedCoordinates">Click anywhere on Earth</span></div></div>
+          <div class="selected-location"><span class="location-pin">⌖</span><div><small>SELECTED POINT</small><strong id="selectedLocationName">No location selected</strong><span id="selectedCoordinates">Click anywhere on Earth</span></div></div>
           <div class="rail-note"><span>i</span> This MVP analyzes a source-supported point time series. Polygon and regional mean extraction are not enabled yet.</div>
+          <div class="rail-divider"></div>
+          <div class="rail-title"><span>04 / GLOBAL SCAN</span><span class="tiny-orbit">◍</span></div>
+          <p class="scan-blurb">Test 24 places across Earth for this variable and paint each trend on the globe: where it rises, where it falls, and where the change is significant.</p>
+          <button class="button button-outline scan-button" id="scanGlobe" type="button"><span>Scan the globe</span><b>◍</b></button>
           <button class="button button-primary run-button" id="runAnalysis"><span>Run analysis</span><b>↗</b></button>
+          <button class="compare-button" id="compareRail" type="button" disabled aria-describedby="compareHint"><i aria-hidden="true">⇄</i><span>Compare with another point</span></button>
+          <p class="compare-hint" id="compareHint">Run an analysis first, then pick a second point to compare against it.</p>
         </aside>
 
         <div class="earth-stage panel-surface" id="earthStage">
-          <div class="stage-topline"><div class="stage-mode"><span class="live-dot"></span> LIVE EXPLORATION <span class="stage-separator">/</span> NASA POWER</div><div class="stage-tools"><button id="resetGlobe" class="stage-tool" title="Reset globe view">◎ RESET VIEW</button><button id="locateMe" class="stage-tool" title="Use a known location">⌖ LOCATE</button><button id="showAnalysis" class="stage-tool" hidden>▣ SHOW REPORT</button></div></div>
-          <div class="stage-globe-area"><div class="globe-ring ring-one"></div><div class="globe-ring ring-two"></div><div class="globe-stage-glow"></div><div class="map-hint" id="mapHint"><span>✣</span> DRAG TO ROTATE &nbsp;·&nbsp; CLICK TO SELECT</div><canvas id="workspaceCanvas" aria-label="Interactive Earth explorer"></canvas><div class="globe-fallback small-fallback"><div class="fallback-grid"></div><div class="fallback-land"></div></div><div class="selection-tooltip" id="selectionTooltip" hidden></div></div>
+          <div class="stage-topline"><div class="stage-mode"><span class="live-dot"></span> LIVE EXPLORATION <span class="stage-separator">/</span> NASA POWER</div><div class="stage-tools"><button id="resetGlobe" class="stage-tool" title="Reset globe view">◎ RESET VIEW</button><button id="locateMe" class="stage-tool" title="Use my device location">⌖ MY LOCATION</button><button id="showAnalysis" class="stage-tool" hidden>▣ SHOW REPORT</button></div></div>
+          <div class="stage-globe-area"><div class="globe-ring ring-one"></div><div class="globe-ring ring-two"></div><div class="globe-stage-glow"></div><div class="map-hint" id="mapHint"><span>✣</span> DRAG TO ROTATE &nbsp;·&nbsp; CLICK TO SELECT &nbsp;·&nbsp; OR SCAN THE GLOBE</div><canvas id="workspaceCanvas" aria-label="Interactive Earth explorer"></canvas><div class="globe-fallback small-fallback"><div class="fallback-grid"></div><div class="fallback-land"></div></div><div class="selection-tooltip" id="selectionTooltip" hidden></div><div class="scan-tooltip" id="scanTooltip" hidden></div>
+          <div class="scan-legend" id="scanLegend" hidden aria-label="Globe scan legend">
+            <div class="legend-title" id="scanLegendTitle">TREND PER DECADE</div>
+            <div class="legend-row"><i class="legend-bar up"></i> Increasing</div>
+            <div class="legend-row"><i class="legend-bar down"></i> Decreasing</div>
+            <div class="legend-row"><i class="legend-ring"></i> Not significant at 95%</div>
+            <div class="legend-note">Bar height = size of change · Click a bar to open that place</div>
+            <div class="legend-status" id="scanStatus" aria-live="polite"></div>
+          </div></div>
           <div class="stage-bottomline"><span>COORDINATE PICKER <b>ENABLED</b></span><span id="globeCoordinateReadout">LAT 00.0000° &nbsp; LNG 00.0000°</span></div>
-        </div>
-
-
-      </div>
-      <section class="analysis-report panel-surface" id="analysisPanel" hidden aria-label="EarthTrace observation report">
+          <div class="analysis-scrim" id="analysisScrim" hidden></div>
+      <section class="analysis-popup" id="analysisPanel" hidden role="dialog" aria-modal="false" aria-labelledby="analysisRegionTitle">
         <div class="report-header">
           <div class="report-heading-copy"><span class="panel-kicker">OBSERVATION REPORT / SCIENTIFIC EVIDENCE</span><h3 id="analysisRegionTitle">Awaiting a location</h3><p id="analysisVariableSubtitle">Select a point and run an analysis to generate this report.</p></div>
-          <div class="report-header-actions"><span class="source-state" id="sourceState"><i></i> NO ANALYSIS</span><span class="report-date-stamp" id="analysisDateStamp">—</span><button class="button button-quiet button-small" id="collapseAnalysis" type="button" aria-label="Hide report">Hide report <b>×</b></button></div>
+          <div class="report-header-actions"><span class="source-state" id="sourceState"><i></i> NO ANALYSIS</span><span class="report-date-stamp" id="analysisDateStamp">—</span><button class="icon-button popup-close" id="collapseAnalysis" type="button" aria-label="Close report" title="Close (Esc)">×</button></div>
         </div>
         <div class="analysis-tabs" role="tablist" aria-label="Analysis details">
           <button class="analysis-tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
@@ -209,22 +233,36 @@
         <div class="analysis-footer"><span>EARTH TRACE / SCIENTIFIC OUTPUT</span><span>V 1.1.0 · NASA POWER MONTHLY POINT DATA</span></div>
       </section>
       <div class="progress-panel" id="progressPanel" hidden aria-live="polite"><div class="progress-header"><div><span class="progress-kicker">ANALYSIS IN PROGRESS</span><strong id="progressTitle">Preparing request</strong></div><span id="progressPercent">—</span></div><div class="progress-track"><span id="progressBar"></span></div><div class="progress-stages"><span data-stage="retrieving">Retrieving NASA data</span><span data-stage="quality">Quality checks</span><span data-stage="analyzing">Testing trend</span><span data-stage="completed">Complete</span></div></div>
-    </section>
+        </div>
 
-    <section class="theatre-section section-wrap" id="theatre">
-      <div class="section-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> WATCH THE METHOD</div><h2>Investigations, <em>step by step.</em></h2></div><p class="section-intro">These are live investigation recipes, not precomputed findings. Run each one against NASA's current published data and inspect the resulting evidence yourself.</p></div>
-      <div class="study-grid" id="guidedStudies">
-        <article class="study-card"><div class="study-map map-dryland"><span class="map-cross">+</span><span class="map-coord">24.1° N / 32.9° E</span></div><div class="study-info"><div class="study-meta"><span>LAND & ATMOSPHERE</span><span>STUDY 01</span></div><h3>Heat over the drylands</h3><p>Investigate monthly near-surface air temperature around Aswan and inspect its long-term trend.</p><div class="study-tags"><span>NASA POWER</span><span>T2M · °C</span><span>MONTHLY</span></div><button class="button button-outline study-launch" data-study="aswan-temp">Start live walkthrough <b>↗</b></button></div></article>
-        <article class="study-card"><div class="study-map map-tropics"><span class="map-cross">+</span><span class="map-coord">3.1° S / 60.0° W</span></div><div class="study-info"><div class="study-meta"><span>WATER & RAINFALL</span><span>STUDY 02</span></div><h3>Following the rainfall signal</h3><p>Explore monthly corrected precipitation near Manaus, then test its direction and uncertainty.</p><div class="study-tags"><span>NASA POWER</span><span>PRECTOTCORR</span><span>MONTHLY</span></div><button class="button button-outline study-launch" data-study="manaus-rain">Start live walkthrough <b>↗</b></button></div></article>
+
       </div>
-      <div class="theatre-note"><span>i</span> A guided study sets up the question and settings; the numerical result is retrieved live and may differ as the source product is updated.</div>
+      <section class="scan-panel panel-surface" id="scanPanel" hidden aria-label="Global trend scan results">
+        <div class="report-header">
+          <div class="report-heading-copy"><span class="panel-kicker">GLOBAL TREND SCAN / WHERE IS IT CHANGING?</span><h3 id="scanTitle">Global scan</h3><p id="scanSubtitle">—</p></div>
+          <div class="report-header-actions"><span class="source-state" id="scanState"><i></i> IDLE</span><button class="button button-quiet button-small" id="scanClose" type="button">Hide scan <b>×</b></button></div>
+        </div>
+        <div class="scan-body">
+          <div class="scan-summary" id="scanSummary"></div>
+          <div class="scan-list" id="scanList" role="list"></div>
+        </div>
+        <p class="chart-note scan-footnote">Each row is a separate NASA POWER point series analysed with the same method (calendar-month anomalies, OLS with HAC uncertainty). Points are samples of biomes, not a global average. A trend can point one way here and the opposite way elsewhere even when one process drives both.</p>
+      </section>
+    
     </section>
 
-    <section class="hydrology-section section-wrap" id="hydrology">
-      <div class="hydro-card panel-surface"><div class="hydro-copy"><div class="eyebrow"><span class="eyebrow-line"></span> INDEPENDENT WATER OBSERVATIONS</div><h2>Put the NASA signal<br />in <em>hydrological context.</em></h2><p>Discover station and field-observation records through CUAHSI HydroClient. These observations are complementary evidence, not interchangeable with NASA's gridded model estimates.</p><div class="hydro-actions"><a class="button button-primary" href="https://data.cuahsi.org/" target="_blank" rel="noopener">Open HydroClient <b>↗</b></a><a class="button button-quiet" href="https://apps.hydroshare.org/apps/timeseries-viewer/" target="_blank" rel="noopener">Data Series Viewer ↗</a><button class="button button-outline" id="hydrologyCheckButton">Check selected point ↗</button></div><div class="hydro-caveat"><span>!</span> Direct HIS Central series retrieval is not enabled in this build. External discovery is available; no station data are simulated.</div></div><div class="hydro-visual"><div class="hydro-ripple ripple-a"></div><div class="hydro-ripple ripple-b"></div><div class="hydro-ripple ripple-c"></div><button class="hydro-molecule" id="hydroMolecule" type="button" aria-pressed="false" aria-label="Explore the water molecule diagram"><svg viewBox="0 0 320 230" role="img" aria-labelledby="hydroSvgTitle hydroSvgDesc"><title id="hydroSvgTitle">Water molecule</title><desc id="hydroSvgDesc">One oxygen atom connected to two hydrogen atoms.</desc><defs><radialGradient id="oxygenGlow"><stop offset="0" stop-color="#baf8f4"/><stop offset=".65" stop-color="#4ba7b0"/><stop offset="1" stop-color="#1b5269"/></radialGradient><radialGradient id="hydrogenGlow"><stop offset="0" stop-color="#fff0d3"/><stop offset=".72" stop-color="#f2a45b"/><stop offset="1" stop-color="#804c2f"/></radialGradient></defs><path class="molecule-bond" d="M151 120 L82 64 M169 120 L238 64"/><path class="molecule-bond molecule-bond-glow" d="M151 120 L82 64 M169 120 L238 64"/><circle class="molecule-orbit" cx="160" cy="115" r="89"/><circle class="molecule-atom atom-oxygen" cx="160" cy="126" r="38"/><circle class="molecule-atom atom-hydrogen atom-h-left" cx="70" cy="50" r="27"/><circle class="molecule-atom atom-hydrogen atom-h-right" cx="250" cy="50" r="27"/><text class="molecule-label molecule-label-o" x="160" y="132" text-anchor="middle">O</text><text class="molecule-label molecule-label-h" x="70" y="56" text-anchor="middle">H</text><text class="molecule-label molecule-label-h" x="250" y="56" text-anchor="middle">H</text></svg><span class="molecule-caption">H₂O <small>WATER MOLECULE</small></span></button><div class="hydro-insight" id="hydroInsight" aria-live="polite">HOVER OR CLICK THE MOLECULE TO EXPLORE THE WATER SYSTEM</div><div class="hydro-axis axis-one"></div><div class="hydro-axis axis-two"></div><span class="hydro-side-label">OBSERVATION / REFERENCE</span></div></div>
+
+    <section class="hydrology-section section-wrap view" id="hydrology" data-view="hydrology" tabindex="-1" hidden>
+      <div class="section-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span> CROSS-CHECK</div><h2>Check the signal <em>on the ground.</em></h2></div><p class="section-intro">NASA's model estimates are one line of evidence. Independent water observations are a second one, kept clearly separate.</p></div>
+            <div class="purpose-strip" aria-label="About this tab">
+        <div class="purpose-item"><span class="purpose-k">WHAT THIS TAB IS</span><p>A bridge between NASA's gridded model estimates and independent measurements on the ground. Stations and field surveys can show whether the local record agrees with the satellite-era signal you found in Earth Explorer.</p></div>
+        <div class="purpose-item"><span class="purpose-k">HOW TO USE IT</span><ol><li>Select a point in Earth Explorer.</li><li>Press <b>Check selected point</b> for station-search links around it.</li><li>Open HydroClient to find stations and compare, keeping both sources separate.</li></ol></div>
+        <div class="purpose-item purpose-challenge"><span class="purpose-k">WHY IT'S HERE · THE CHALLENGE</span><p>A trend from one dataset is a lead, not proof. Water is the clearest place to cross-check it, so EarthTrace points to an independent source and labels it as separate rather than blending the two into one number.</p></div>
+      </div>
+      <div class="hydro-card panel-surface"><div class="hydro-tide" aria-hidden="true"></div><div class="hydro-copy"><div class="eyebrow"><span class="eyebrow-line"></span> INDEPENDENT WATER OBSERVATIONS</div><h3>Put the NASA signal<br />in <em>hydrological context.</em></h3><p>Discover station and field-observation records through CUAHSI HydroClient. These observations are complementary evidence, not interchangeable with NASA's gridded model estimates.</p><div class="hydro-actions"><a class="button button-primary" href="https://data.cuahsi.org/" target="_blank" rel="noopener">Open HydroClient <b>↗</b></a><a class="button button-quiet" href="https://apps.hydroshare.org/apps/timeseries-viewer/" target="_blank" rel="noopener">Data Series Viewer ↗</a><button class="button button-outline" id="hydrologyCheckButton">Check selected point ↗</button></div><div class="hydro-caveat"><span>!</span> Direct HIS Central series retrieval is not enabled in this build. External discovery is available; no station data are simulated.</div></div><div class="hydro-visual"><div class="hydro-ripple ripple-a"></div><div class="hydro-ripple ripple-b"></div><div class="hydro-ripple ripple-c"></div><button class="hydro-molecule" id="hydroMolecule" type="button" aria-pressed="false" aria-label="Explore the water molecule diagram"><svg viewBox="0 0 320 230" role="img" aria-labelledby="hydroSvgTitle hydroSvgDesc"><title id="hydroSvgTitle">Water molecule</title><desc id="hydroSvgDesc">One oxygen atom connected to two hydrogen atoms.</desc><defs><radialGradient id="oxygenGlow"><stop offset="0" stop-color="#baf8f4"/><stop offset=".65" stop-color="#4ba7b0"/><stop offset="1" stop-color="#1b5269"/></radialGradient><radialGradient id="hydrogenGlow"><stop offset="0" stop-color="#efe9ff"/><stop offset=".72" stop-color="#a98bff"/><stop offset="1" stop-color="#4a3d94"/></radialGradient></defs><path class="molecule-bond" d="M151 120 L82 64 M169 120 L238 64"/><path class="molecule-bond molecule-bond-glow" d="M151 120 L82 64 M169 120 L238 64"/><circle class="molecule-orbit" cx="160" cy="115" r="89"/><circle class="molecule-atom atom-oxygen" cx="160" cy="126" r="38"/><circle class="molecule-atom atom-hydrogen atom-h-left" cx="70" cy="50" r="27"/><circle class="molecule-atom atom-hydrogen atom-h-right" cx="250" cy="50" r="27"/><text class="molecule-label molecule-label-o" x="160" y="132" text-anchor="middle">O</text><text class="molecule-label molecule-label-h" x="70" y="56" text-anchor="middle">H</text><text class="molecule-label molecule-label-h" x="250" y="56" text-anchor="middle">H</text></svg><span class="molecule-caption">H₂O <small>WATER MOLECULE</small></span></button><div class="hydro-insight" id="hydroInsight" aria-live="polite">HOVER OR CLICK THE MOLECULE TO EXPLORE THE WATER SYSTEM</div><div class="hydro-axis axis-one"></div><div class="hydro-axis axis-two"></div><span class="hydro-side-label">OBSERVATION / REFERENCE</span></div></div>
     </section>
 
-    <section class="team-section section-wrap" id="team">
+    <section class="team-section section-wrap view" id="team" data-view="team" tabindex="-1" hidden>
       <div class="team-header"><div><div class="eyebrow"><span class="eyebrow-line"></span> THE PEOPLE BEHIND THE SIGNAL</div><h2>Built by <em>curiosity.</em></h2></div><p class="team-intro">A small team bringing together software, scientific research and visual communication.</p></div>
       <div class="team-grid">
         <article class="team-card"><div class="team-avatar avatar-cyan">MZ</div><div class="team-role">BACKEND DEVELOPING</div><h3>Mustafa Mahmoud Zidan</h3><a href="mailto:MUSTAFA.MAHMOUD.ZIDAN@gmail.com">Mstafa.Mahmoud.Zidan@gmail.com ↗</a></article>
@@ -262,11 +300,11 @@
 
 
   <!-- Saved studies -->
-  <div class="modal-backdrop" id="savedModal" hidden><section class="modal-card saved-modal" role="dialog" aria-modal="true" aria-labelledby="savedTitle"><div class="modal-top"><span class="panel-kicker">LOCAL INVESTIGATION LIBRARY</span><button class="icon-button modal-close" data-close="savedModal" aria-label="Close">×</button></div><div class="eyebrow">YOUR EVIDENCE RECORDS</div><h2 id="savedTitle">Saved <em>investigations.</em></h2><p>Saved on this EarthTrace server in its local SQLite store. No user account is required.</p><div id="savedInvestigationList" class="recommendation-list"><p class="chart-note">Loading saved investigations…</p></div></section></div>
+  <div class="modal-backdrop" id="savedModal" hidden><section class="modal-card saved-modal" role="dialog" aria-modal="true" aria-labelledby="savedTitle"><div class="modal-top"><span class="panel-kicker">LOCAL INVESTIGATION LIBRARY</span><button class="icon-button modal-close" data-close="savedModal" aria-label="Close">×</button></div><div class="eyebrow">YOUR EVIDENCE RECORDS</div><h2 id="savedTitle">Saved <em>investigations.</em></h2><p>Saved in this browser, so no account is needed. Clearing your site data removes them.</p><div id="savedInvestigationList" class="recommendation-list"><p class="chart-note">Loading saved investigations…</p></div></section></div>
 
   <!-- Toasts -->
   <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
 
-  <script type="module" src="/script.js"></script>
+  <script type="module" src="/script.js?v=6"></script>
 </body>
 </html>

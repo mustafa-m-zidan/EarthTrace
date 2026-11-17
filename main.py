@@ -111,6 +111,83 @@ VARIABLES: dict[str, dict[str, Any]] = {
         "technical": "POWER monthly WS10M parameter; values retain the API's returned unit and temporal statistic.",
         "precision": 2,
     },
+    "TS": {
+        "id": "TS", "name": "Earth skin temperature", "short_name": "TS",
+        "unit": "°C", "community": "AG", "family": "temperature",
+        "simple": "The temperature of the very top of the land or ocean surface, a little different from the air temperature above it.",
+        "why": "Surface temperature drives evaporation, snow and ice melt, and the heat the ground sends back to the atmosphere.",
+        "method": "NASA POWER meteorological data derived from the GMAO MERRA-2 assimilation model.",
+        "increase": "A positive trend means the modelled surface skin temperature has risen over the selected period.",
+        "caveat": "Skin temperature is a model estimate for a grid cell and can differ from satellite land-surface temperature products.",
+        "technical": "POWER monthly TS parameter, retained with the provider's unit and temporal statistic.",
+        "precision": 2,
+    },
+    "GWETTOP": {
+        "id": "GWETTOP", "name": "Surface soil wetness", "short_name": "GWETTOP",
+        "unit": "fraction", "community": "AG", "family": "water",
+        "simple": "How wet the top few centimetres of soil are, from 0 (completely dry) to 1 (completely saturated).",
+        "why": "Topsoil moisture responds quickly to rain and heat, so it is an early signal of drying or wetting land.",
+        "method": "NASA POWER land-surface parameter derived from the GMAO MERRA-2 assimilation model.",
+        "increase": "A positive trend means the modelled topsoil has become wetter over the selected period.",
+        "caveat": "This is a dimensionless model wetness index, not a volumetric soil-moisture measurement from a probe or radiometer.",
+        "technical": "POWER monthly GWETTOP parameter (surface soil wetness, fraction 0–1).",
+        "precision": 3,
+    },
+    "GWETROOT": {
+        "id": "GWETROOT", "name": "Root-zone soil wetness", "short_name": "GWETROOT",
+        "unit": "fraction", "community": "AG", "family": "water",
+        "simple": "How wet the soil is down to plant-root depth, from 0 (dry) to 1 (saturated).",
+        "why": "Root-zone moisture is the water plants can actually reach, so it links rainfall to drought and crop stress.",
+        "method": "NASA POWER land-surface parameter derived from the GMAO MERRA-2 assimilation model.",
+        "increase": "A positive trend means the modelled root zone has become wetter over the selected period.",
+        "caveat": "This is a dimensionless model wetness index; it changes more slowly than topsoil wetness.",
+        "technical": "POWER monthly GWETROOT parameter (root-zone soil wetness, fraction 0–1).",
+        "precision": 3,
+    },
+    "EVLAND": {
+        "id": "EVLAND", "name": "Evaporation from land", "short_name": "EVLAND",
+        "unit": "mm/day", "community": "AG", "family": "water",
+        "simple": "How much water leaves the land surface as vapour each day, as a depth of water.",
+        "why": "Evaporation is the other half of the water cycle next to rainfall; together they decide whether land gets wetter or drier.",
+        "method": "NASA POWER land-surface parameter derived from the GMAO MERRA-2 assimilation model.",
+        "increase": "A positive trend means the modelled land evaporation rate has increased over the selected period.",
+        "caveat": "The unit is a daily rate, not a monthly total. Evaporation is a model product and is not measured directly at the point.",
+        "technical": "POWER monthly EVLAND parameter; EarthTrace keeps the provider-defined statistic and unit.",
+        "precision": 3,
+    },
+    "ALLSKY_SFC_SW_DWN": {
+        "id": "ALLSKY_SFC_SW_DWN", "name": "Sunlight reaching the surface", "short_name": "ALLSKY_SFC_SW_DWN",
+        "unit": "kWh/m²/day", "community": "RE", "family": "atmosphere",
+        "simple": "The amount of solar energy that arrives on a flat patch of ground each day, after clouds and air have taken their share.",
+        "why": "Surface sunlight powers evaporation, plant growth and solar energy, and it changes with cloud cover and air quality.",
+        "method": "NASA POWER solar-flux data derived from satellite cloud and radiation products together with MERRA-2.",
+        "increase": "A positive trend means more solar energy reaches the surface on average (for example from fewer clouds).",
+        "caveat": "This is an all-sky satellite/model estimate for a grid cell, not a pyranometer reading at the site.",
+        "technical": "POWER monthly ALLSKY_SFC_SW_DWN parameter (all-sky surface shortwave downward irradiance).",
+        "precision": 3,
+    },
+    "CLOUD_AMT": {
+        "id": "CLOUD_AMT", "name": "Cloud cover", "short_name": "CLOUD_AMT",
+        "unit": "%", "community": "SB", "family": "atmosphere",
+        "simple": "The share of the sky covered by cloud, as a percentage.",
+        "why": "Clouds control how much sunlight reaches the ground and how much heat is trapped, so cloud changes feed back on climate.",
+        "method": "NASA POWER cloud data derived from satellite cloud retrievals processed for the POWER project.",
+        "increase": "A positive trend means the average cloud fraction has increased over the selected period.",
+        "caveat": "Cloud amount depends on the retrieval method and can shift when satellites or algorithms change; interpret long trends cautiously.",
+        "technical": "POWER monthly CLOUD_AMT parameter (cloud amount, %).",
+        "precision": 2,
+    },
+    "PS": {
+        "id": "PS", "name": "Surface air pressure", "short_name": "PS",
+        "unit": "kPa", "community": "SB", "family": "atmosphere",
+        "simple": "The weight of the air pressing down on the surface, measured in kilopascals.",
+        "why": "Pressure patterns steer weather systems, and slow shifts in them can indicate changes in circulation.",
+        "method": "NASA POWER meteorological data derived from the GMAO MERRA-2 assimilation model.",
+        "increase": "A positive trend means the average surface pressure has increased; changes are usually small.",
+        "caveat": "Surface pressure depends on elevation of the grid cell, so compare trends rather than absolute values between places.",
+        "technical": "POWER monthly PS parameter (surface pressure, kPa).",
+        "precision": 3,
+    },
 }
 
 app = FastAPI(title="EarthTrace API", version=APP_VERSION, description="NASA-data-driven Earth-system trend investigation MVP")
@@ -329,18 +406,28 @@ async def fetch_power_point(
     if cached_payload is None:
         headers = {"User-Agent": f"EarthTrace/{APP_VERSION} (NASA POWER public API client)"}
         timeout = httpx.Timeout(60.0, connect=15.0)
+        # POWER only serves a parameter through the communities that include it. Try the expected community first,
+        # then the others, so one catalogue assumption cannot make a variable unusable. Only the same parameter is fetched.
+        communities = [variable["community"], *[c for c in ("AG", "SB", "RE") if c != variable["community"]]]
+        last_detail: Any = None
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True, headers=headers) as client:
-            response = await client.get(NASA_POWER_BASE, params=params)
-            if response.status_code == 422:
-                try:
-                    detail = response.json()
-                except Exception:
-                    detail = response.text[:500]
-                raise RuntimeError(f"NASA POWER rejected this request (422): {detail}")
-            if response.status_code == 429:
-                raise RuntimeError("NASA POWER is rate-limiting requests. Wait before retrying; EarthTrace did not substitute other data.")
-            response.raise_for_status()
-            cached_payload = response.json()
+            for community in communities:
+                params["community"] = community
+                response = await client.get(NASA_POWER_BASE, params=params)
+                if response.status_code == 422:
+                    try:
+                        last_detail = response.json()
+                    except Exception:
+                        last_detail = response.text[:500]
+                    continue
+                if response.status_code == 429:
+                    raise RuntimeError("NASA POWER is rate-limiting requests. Wait before retrying; EarthTrace did not substitute other data.")
+                response.raise_for_status()
+                cached_payload = response.json()
+                request_url = f"{NASA_POWER_BASE}?{urlencode(params)}"
+                break
+        if cached_payload is None:
+            raise RuntimeError(f"NASA POWER rejected this request (422): {last_detail}")
         cached_at = utc_now()
         with db_connection() as conn:
             conn.execute(
@@ -682,6 +769,94 @@ def make_analysis_result(request: AnalysisRequest, data: dict[str, Any]) -> dict
         "source_state": "cached_nasa_response" if data.get("cache_status") == "cached_nasa_response" else "live_from_nasa",
     }
 
+
+
+# ---------------------------------------------------------------------------
+# GLOBAL SCAN — the same analysis at a fixed set of places that sample Earth's biomes.
+# The point is the contrast between regions, not a global average.
+# ---------------------------------------------------------------------------
+SCAN_POINTS: list[dict[str, Any]] = [
+    {"id": "svalbard", "name": "Svalbard", "biome": "High Arctic", "lat": 78.22, "lon": 15.63},
+    {"id": "greenland", "name": "Greenland ice sheet", "biome": "Ice sheet", "lat": 72.0, "lon": -40.0},
+    {"id": "reykjavik", "name": "Reykjavík", "biome": "Subarctic coast", "lat": 64.15, "lon": -21.94},
+    {"id": "yakutsk", "name": "Yakutsk", "biome": "Boreal / permafrost", "lat": 62.03, "lon": 129.73},
+    {"id": "moscow", "name": "Moscow", "biome": "Temperate continental", "lat": 55.75, "lon": 37.62},
+    {"id": "london", "name": "London", "biome": "Temperate maritime", "lat": 51.51, "lon": -0.13},
+    {"id": "athens", "name": "Athens", "biome": "Mediterranean", "lat": 37.98, "lon": 23.73},
+    {"id": "california", "name": "Central California", "biome": "Mediterranean farmland", "lat": 36.78, "lon": -119.42},
+    {"id": "tokyo", "name": "Tokyo", "biome": "Humid subtropical city", "lat": 35.68, "lon": 139.65},
+    {"id": "tibet", "name": "Tibetan Plateau", "biome": "High plateau", "lat": 31.0, "lon": 91.1},
+    {"id": "cairo", "name": "Cairo", "biome": "Desert river valley", "lat": 30.04, "lon": 31.24},
+    {"id": "sahara", "name": "Tamanrasset (Sahara)", "biome": "Hot desert", "lat": 22.79, "lon": 5.52},
+    {"id": "delhi", "name": "Delhi", "biome": "Monsoon plain", "lat": 28.61, "lon": 77.21},
+    {"id": "dhaka", "name": "Dhaka", "biome": "Monsoon delta", "lat": 23.81, "lon": 90.41},
+    {"id": "honolulu", "name": "Honolulu", "biome": "Tropical ocean island", "lat": 21.31, "lon": -157.86},
+    {"id": "singapore", "name": "Singapore", "biome": "Equatorial city", "lat": 1.35, "lon": 103.82},
+    {"id": "congo", "name": "Congo basin", "biome": "Tropical rainforest", "lat": 0.5, "lon": 23.5},
+    {"id": "nairobi", "name": "Nairobi", "biome": "Highland savanna", "lat": -1.29, "lon": 36.82},
+    {"id": "manaus", "name": "Manaus (Amazon)", "biome": "Tropical rainforest", "lat": -3.12, "lon": -60.02},
+    {"id": "brasilia", "name": "Brasília", "biome": "Cerrado savanna", "lat": -15.8, "lon": -47.89},
+    {"id": "atacama", "name": "Atacama Desert", "biome": "Coastal desert", "lat": -23.9, "lon": -69.2},
+    {"id": "alice", "name": "Alice Springs", "biome": "Australian outback", "lat": -23.7, "lon": 133.88},
+    {"id": "capetown", "name": "Cape Town", "biome": "Southern Mediterranean", "lat": -33.92, "lon": 18.42},
+    {"id": "mcmurdo", "name": "McMurdo Sound", "biome": "Antarctic coast", "lat": -77.85, "lon": 166.67},
+]
+SCAN_LOOKUP = {point["id"]: point for point in SCAN_POINTS}
+
+
+class ScanBatchRequest(BaseModel):
+    variable_id: str
+    start_year: int = Field(ge=1981, le=2100)
+    end_year: int = Field(ge=1981, le=2100)
+    point_ids: list[str] = Field(min_length=1, max_length=8)
+    seasonality: Literal["monthly_anomalies", "original_values"] = "monthly_anomalies"
+    significance_level: float = Field(default=0.05, gt=0.0, lt=0.2)
+
+    @field_validator("variable_id")
+    @classmethod
+    def scan_variable_supported(cls, value: str) -> str:
+        if value not in VARIABLES:
+            raise ValueError("Variable is not in the EarthTrace catalogue.")
+        return value
+
+    @field_validator("end_year")
+    @classmethod
+    def scan_years_valid(cls, end: int, info):
+        start = info.data.get("start_year")
+        if start is not None and end <= start:
+            raise ValueError("End year must be after start year.")
+        return end
+
+
+async def scan_one_point(request: ScanBatchRequest, point: dict[str, Any], gate: asyncio.Semaphore) -> dict[str, Any]:
+    base = {"id": point["id"], "name": point["name"], "biome": point["biome"], "lat": point["lat"], "lon": point["lon"]}
+    async with gate:
+        try:
+            payload = AnalysisRequest(
+                variable_id=request.variable_id,
+                region=PointRegion(lat=point["lat"], lon=point["lon"], name=point["name"]),
+                start_date=date(request.start_year, 1, 1),
+                end_date=date(request.end_year, 12, 1),
+                seasonality=request.seasonality,
+                significance_level=request.significance_level,
+            ).model_dump(mode="json")
+            result = await execute_analysis(payload)
+        except Exception as exc:  # one place failing must not hide the others
+            return {**base, "ok": False, "error": str(exc)[:300]}
+    trend = result["trend"]
+    return {
+        **base,
+        "ok": True,
+        "slope_per_year": trend["slope_per_year"],
+        "slope_per_decade": trend["slope_per_decade"],
+        "confidence_interval_95": trend["confidence_interval_95"],
+        "p_value": trend["p_value"],
+        "classification": trend["classification"],
+        "significant": trend["classification"] in {"significant_increasing_trend", "significant_decreasing_trend"},
+        "coverage": result["quality"]["temporal_coverage_percent"],
+        "valid_observations": result["quality"]["valid_observations"],
+        "unit": result["variable"]["unit"],
+    }
 
 # ---------------------------------------------------------------------------
 # JOB RUNNER
@@ -1034,6 +1209,21 @@ async def compare_regions(request: CompareRequest):
         "interpretation": "A direct difference-in-slopes test is provided. The difference is not inferred merely from comparing the two individual p-values.",
         "created_at": utc_now(),
     }
+
+
+@app.get("/api/catalog/scan-points")
+async def scan_points():
+    return {"points": SCAN_POINTS, "note": "Sample places chosen to span Earth's biomes; they are not a global average."}
+
+
+@app.post("/api/analysis/scan-batch")
+async def scan_batch(request: ScanBatchRequest):
+    unknown = [pid for pid in request.point_ids if pid not in SCAN_LOOKUP]
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown scan point(s): {', '.join(unknown)}")
+    gate = asyncio.Semaphore(3)  # polite to NASA POWER, which rate-limits bursts
+    results = await asyncio.gather(*(scan_one_point(request, SCAN_LOOKUP[pid], gate) for pid in request.point_ids))
+    return {"variable_id": request.variable_id, "start_year": request.start_year, "end_year": request.end_year, "results": list(results)}
 
 
 @app.post("/api/analysis/extend")
